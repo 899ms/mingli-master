@@ -4,13 +4,25 @@
 基于 iztro-py 库，输入生辰信息，输出精确的十二宫星曜分布数据。
 输出 JSON 格式，供 HTML 模板和 LLM 解读使用。
 
+V2.1 新增（合并社区共创版机制）:
+  - 空宫借星安宫与能量降阶标记 (reduce_empty_palaces)
+  - 宏观格局判定与三维量化 (evaluate_gezhi)
+  - 流年/大限化忌叠冲追踪 (track_time_mutagens)
+  - --year 参数指定目标流年（默认当前年份，不再硬编码）
+
 用法:
     python3 calculate_chart.py --solar 1991-8-15 --hour 1 --gender 男
     python3 calculate_chart.py --lunar 1991-7-6 --hour 1 --gender 男 --leap
+    python3 calculate_chart.py --solar 1991-8-15 --hour 1 --gender 男 --year 2027
 """
 import argparse
+import datetime
 import json
+import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gezhi_rules import reduce_empty_palaces, evaluate_gezhi, track_time_mutagens
 
 BRANCH_CN = {
     'ziEarthly': '子', 'chouEarthly': '丑', 'yinEarthly': '寅',
@@ -115,9 +127,14 @@ def build_chart(date_str, hour_index, gender, is_lunar=False, is_leap=False, lan
     empty_palaces_result = chart.empty_palaces() if callable(getattr(chart, 'empty_palaces', None)) else []
     empty_palaces = [BRANCH_CN.get(ep.earthly_branch, str(ep)) for ep in empty_palaces_result]
 
+    # 公历/农历日期（两种输入下都从引擎取规范值，避免 lunar 输入时 solar_date 为空）
+    solar_date = date_str if not is_lunar else getattr(chart, 'solar_date', None)
+    lunar_date = date_str if is_lunar else getattr(chart, 'lunar_date', None)
+
     result = {
-        'solar_date': date_str if not is_lunar else None,
-        'lunar_date': date_str if is_lunar else chart.lunar_date,
+        'solar_date': solar_date,
+        'lunar_date': lunar_date,
+        'birth_year': int(str(solar_date).split('-')[0]) if solar_date else None,
         'chinese_date': chart.chinese_date,
         'gender': gender,
         'hour_index': hour_index,
@@ -129,6 +146,14 @@ def build_chart(date_str, hour_index, gender, is_lunar=False, is_leap=False, lan
         'palaces': palaces,
     }
     return result
+
+
+def enrich_chart(chart, target_year):
+    """V2 后处理管线：空宫降阶 → 格局扫描 → 时空压力审计"""
+    reduce_empty_palaces(chart)
+    chart['gezhi_analysis'] = evaluate_gezhi(chart)
+    chart['time_travel_analysis'] = track_time_mutagens(chart, current_year=target_year)
+    return chart
 
 
 HOUR_NAMES = {
@@ -151,6 +176,8 @@ def main():
                         help='时辰索引: 0=早子 1=丑 2=寅 ... 11=亥 12=晚子')
     parser.add_argument('--gender', required=True, choices=['男', '女'])
     parser.add_argument('--leap', action='store_true', help='农历闰月（仅 --lunar 有效）')
+    parser.add_argument('--year', type=int, default=datetime.date.today().year,
+                        help='目标流年年份（默认当前年份），用于时空压力审计')
     parser.add_argument('--output', help='输出文件路径（默认 stdout）')
 
     args = parser.parse_args()
@@ -159,6 +186,7 @@ def main():
     date_str = args.lunar if is_lunar else args.solar
 
     chart = build_chart(date_str, args.hour, args.gender, is_lunar, args.leap)
+    chart = enrich_chart(chart, args.year)
 
     output = json.dumps(chart, ensure_ascii=False, indent=2)
     if args.output:

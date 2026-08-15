@@ -1,11 +1,13 @@
 ---
 name: 命理解读师
-description: "紫微斗数命盘解读：输入生辰信息，精确排盘并生成可视化命盘解读报告（HTML）。融合紫微三合派、中州派和手相互证的方法论。当用户提到算命、命盘、紫微斗数、排盘、命理、八字、运势、看命、生辰分析时触发。也适用于用户说「帮我看看命盘」「算一下」「排个盘」「看看运势」的场景。即使用户只是说「帮我分析一下我的性格/事业/感情」，只要上下文暗示需要命理分析，也应该触发。"
+description: "紫微斗数命盘解读 V2：输入生辰信息，精确排盘并生成可视化命盘解读报告（HTML）。支持格局量化仪表盘、空宫借星标记、流年时空压力热力表，双主题（典藏/赛博）可切换。融合紫微三合派、中州派和手相互证的方法论。当用户提到算命、命盘、紫微斗数、排盘、命理、八字、运势、看命、生辰分析时触发。也适用于用户说「帮我看看命盘」「算一下」「排个盘」「看看运势」的场景。即使用户只是说「帮我分析一下我的性格/事业/感情」，只要上下文暗示需要命理分析，也应该触发。"
 ---
 
-# 命理解读师
+# 命理解读师 V2
 
 紫微斗数命盘解读 skill。将人的先天时空信息符号化，取象推演，解读生命轨迹。
+
+> **V2 新增**：格局量化仪表盘（第 0 章）· 空宫借星与能量降阶标记 · 流年时空压力热力表（第 6 章）· `--year` 指定任意流年 · 双主题切换
 
 ## 核心原则
 
@@ -23,7 +25,7 @@ description: "紫微斗数命盘解读：输入生辰信息，精确排盘并生
 
 ## 依赖
 
-本 skill 依赖 `iztro-py` Python 库进行排盘计算。首次使用前需安装：
+本 skill 依赖 `iztro-py` Python 库进行排盘计算（≥ 0.5.0）。首次使用前需安装：
 
 ```bash
 python3 -m pip install iztro-py --user --break-system-packages
@@ -57,6 +59,9 @@ python3 scripts/calculate_chart.py --solar 1991-8-15 --hour 1 --gender 男 --out
 # 农历
 python3 scripts/calculate_chart.py --lunar 1991-7-6 --hour 1 --gender 男 --output /tmp/chart.json
 
+# 指定目标流年（默认当前年份；时空压力审计按该年计算）
+python3 scripts/calculate_chart.py --solar 1991-8-15 --hour 1 --gender 男 --year 2027 --output /tmp/chart.json
+
 # 时辰索引对照：
 # 0=早子时(23-00) 1=丑时(01-03) 2=寅时(03-05) 3=卯时(05-07)
 # 4=辰时(07-09) 5=巳时(09-11) 6=午时(11-13) 7=未时(13-15)
@@ -64,7 +69,11 @@ python3 scripts/calculate_chart.py --lunar 1991-7-6 --hour 1 --gender 男 --outp
 # 12=晚子时(23-00)
 ```
 
-脚本输出 JSON 格式的排盘数据，包含十二宫星曜分布、四化、大限等精确信息。
+脚本输出 JSON 格式的排盘数据，除十二宫星曜、四化、大限外，V2 自动附加：
+
+- `gezhi_analysis`：命宫三方四正格局判定 + 三维量化（风险耐受度/波动恢复力/决策激进度，1-5）
+- `time_travel_analysis`：目标流年化忌、大限化忌与生年化忌的叠冲扫描（每宫压力评分）
+- 空宫的 `borrowed_major_stars` / `energy_coefficient`（借星安宫与能量降阶标记）
 
 **注意**：`scripts/` 路径相对于本 skill 目录（`~/.claude/skills/mingli-master/scripts/`）。
 
@@ -72,7 +81,7 @@ python3 scripts/calculate_chart.py --lunar 1991-7-6 --hour 1 --gender 男 --outp
 
 读取排盘 JSON 数据后，按照以下结构生成解读文字：
 
-1. **命盘底色**（先天禀赋、性格底层）—— 重点分析命宫主星（若空宫则借对宫）
+1. **命盘底色**（先天禀赋、性格底层）—— 重点分析命宫主星（若空宫则借对宫星曜，能量打七折；对宫见煞则五折）
 2. **事业**（官禄宫）—— 职业倾向、适合路线
 3. **财运**（财帛宫）—— 财运模式、积累方式
 4. **感情**（夫妻宫）—— 缘分时机、感情模式、伴侣特征
@@ -87,14 +96,16 @@ python3 scripts/calculate_chart.py --lunar 1991-7-6 --hour 1 --gender 男 --outp
 - 先承认格局的积极面，再指出需要注意的地方
 - 不要写成教科书，要写成"跟朋友聊天"的语气
 
+**V2 提示：** 第 0 章（宏观格局仪表盘）和第 6 章（时空压力热力表）由 HTML 生成器从 `gezhi_analysis` / `time_travel_analysis` 自动渲染，**解读文字不用写这两章**。但解读时应阅读这两个字段：格局判定（如杀破狼/机月同梁）是解读基调的锚，时空压力热点（压力分 ≥2.5 的宫位）值得在流年提示中自然带出。
+
 ### 第四步：生成解读数据 JSON
 
 将解读内容整理成 `reading.json` 格式：
 
 ```json
 {
-  "current_decadal_branch": "当前大限所在宫位的地支（如'辰'）",
-  "current_decadal_display": "当前大限展示文字（如'辰宫·天机·天梁'）",
+  "current_decadal_branch": "当前大限所在宫位的地支（如'辰'；留空则自动从排盘数据定位）",
+  "current_decadal_display": "当前大限展示文字（如'辰宫·天机·天梁'；留空则自动生成）",
   "cards": [
     {
       "title": "命盘底色 · 先天禀赋",
@@ -108,7 +119,7 @@ python3 scripts/calculate_chart.py --lunar 1991-7-6 --hour 1 --gender 男 --outp
       ]
     }
   ],
-  "hand_reading": { "items": [...] },
+  "hand_reading": { "items": [] },
   "calibration_questions": [
     {"text": "问题文本", "hint": "补充说明"}
   ]
@@ -118,7 +129,7 @@ python3 scripts/calculate_chart.py --lunar 1991-7-6 --hour 1 --gender 男 --outp
 **cards 的样式变体：**
 - `full: true` — 全宽卡片（用于命盘底色、当前大限等重点章节）
 - `highlight: true` — 红色边框高亮
-- `teal: true` — 青色边框高亮（用于当前大限）
+- `teal: true` — 青色边框高亮（用于时空压力审计第 6 章）
 - 省略则使用默认样式
 
 **body 正文的 HTML 标签：**
@@ -131,13 +142,13 @@ python3 scripts/calculate_chart.py --lunar 1991-7-6 --hour 1 --gender 男 --outp
 ### 第五步：生成 HTML 命盘
 
 ```bash
-python3 scripts/generate_html.py \
-  --chart /tmp/chart.json \
-  --reading /tmp/reading.json \
-  --output /path/to/output.html
+# reading.json 为空结构也可以运行（第 0/6 章自动注入，出"骨架盘"）
+echo '{"cards": [], "hand_reading": {"items": []}, "calibration_questions": []}' > /tmp/reading.json
+
+python3 scripts/generate_html.py --chart /tmp/chart.json --reading /tmp/reading.json --output /tmp/mingpan.html
 ```
 
-生成的 HTML 文件是完整的可视化命盘，可以直接在浏览器中打开查看。
+生成的 HTML 文件是完整的可视化命盘，浏览器直接打开。**页面右上角可切换「典藏」（金黑古典）/「赛博」（发光卡片）双主题**，选择会记住。
 
 ### 第六步：手相互证（可选）
 
@@ -172,17 +183,32 @@ python3 scripts/generate_html.py \
 
 ## 校准机制
 
-解读完毕后，在命盘末尾加入校准问答（已内置于 HTML 模板中）。
+解读完毕后，在命盘末尾加入校准问答。用户回答后，可以修正取象偏差，将准确度从 65-75% 推向 85% 以上。完整题库见 `scripts/calibration.py`（含优先级、对应命盘关键点与回答示例）。
 
-从以下维度选 3-5 个最关键的追问：
-- 目前从事的行业或工作性质？
-- 是否已婚？感情状态如何？
-- 近 1-2 年有没有明显的转折或压力？
-- 父母中哪一方影响你更深？
-- 你最困扰的事情是什么领域？
-- 有没有明显的身体不适或反复出现的健康问题？
+**标准校准问题（按优先级选用 3-5 个）：**
 
-用户回答后，可以修正取象偏差，将准确度从 65-75% 推向 85% 以上。
+1. **感情/婚姻（必问）**
+   - 你的感情/婚姻状态属于哪种？（稳定/波折/单身/其他）
+   - 如果已婚/有伴侣，有没有重大感情事件？（如：结婚年份、近年有无变动）
+2. **财务状况（必问）**
+   - 最近1-2年财务状况如何？（如：收入变化、投资损益、负债、理财收益等）
+3. **事业/工作模式（选问）**
+   - 目前从事的行业或工作性质？（打工/创业/自由职业/投资理财为主）
+4. **生活变化（选问）**
+   - 最近1-2年有没有明显的生活变化或压力来源？（换城市、生活节奏变化、经济压力、家庭成员变动等）
+5. **健康/困扰（选问）**
+   - 有没有明显的身体不适或反复出现的健康问题？
+   - 你最困扰的事情是什么领域？
+   - 父母中哪一方影响你更深？
+
+**校准后的解读调整：**
+
+| 命盘关键点 | 用户回答 | 解读调整方向 |
+|-----------|---------|-------------|
+| 夫妻宫/大限转换 | 感情变动年份 | 确认感情解读准确度↑ |
+| 财帛宫+铃星/擎羊 | 投资亏损/收入锐减 | 财务解读确认准确度↑ |
+| 官禄宫组合 | 创业/打工模式 | 事业解读校准 |
+| 整体格局 | 大运时间节点 | 验证时间节点预测 |
 
 ## 输出格式
 
@@ -196,6 +222,18 @@ python3 scripts/generate_html.py \
 - 标注与星盘吻合/矛盾之处
 - 矛盾处说明取舍逻辑
 
+## V2 自动增强组件
+
+以下组件由脚本从排盘数据**确定性计算**并自动渲染，不依赖解读文案：
+
+| 组件 | 位置 | 数据来源 | 内容 |
+|------|------|---------|------|
+| 宏观格局仪表盘 | cards 头部 | `gezhi_analysis` | 格局判定 + 技术别名 + 描述 + 三维量化进度条（1-5） |
+| 空宫借星标记 | 十二宫格 | 空宫 `borrowed_*` 字段 | 虚线边框 + 借星斜体"(借)" + 能量系数标签（0.5红/0.7橙/1.0绿） |
+| 时空压力热力表 | cards 尾部 | `time_travel_analysis` | 流年干支 + 流年/大限/生年化忌叠冲，每宫压力分（≥2.5 高危热点，≥1.5 预警） |
+
+**判定规则的单一事实来源**是 `scripts/gezhi_rules.py`：格局分类器（杀破狼/紫府武相/机月同梁/阳梁昌禄/巨日同宫/马头带剑/杂格）、空宫能量降阶（0.7/0.5）、四化忌星表（已按标准生年四化校验修正）。
+
 ## 参考文件
 
 | 文件 | 何时读取 |
@@ -203,17 +241,38 @@ python3 scripts/generate_html.py \
 | `references/stars_reference.md` | 解读命宫、事业、财运、感情时，查阅相关星曜的解读参考 |
 | `references/four_hua_reference.md` | 分析四化飞星时查阅 |
 | `references/interpretation_guide.md` | 首次使用本 skill 时读取，了解解读风格和语气要求 |
+| `scripts/gezhi_rules.py` | 需要解释格局判定或量化指标的计算规则时查阅 |
+| `scripts/calibration.py` | 组织校准问答时查阅完整题库（优先级/关键点/回答示例） |
 
 ## 完整示例流程
 
 ```bash
-# 1. 排盘
+# 1. 排盘（含格局扫描 + 流年压力审计）
 python3 scripts/calculate_chart.py --solar 1991-8-15 --hour 1 --gender 男 --output /tmp/chart.json
 
 # 2. 读取 chart.json，分析命盘，生成 reading.json（由 LLM 完成）
 
-# 3. 生成 HTML
-python3 scripts/generate_html.py --chart /tmp/chart.json --reading /tmp/reading.json --output mingpan.html
+# 3. 生成 HTML（即使 reading.json 为空，也会自动注入第 0/6 章组件）
+python3 scripts/generate_html.py --chart /tmp/chart.json --reading /tmp/reading.json --output /tmp/mingpan.html
 
-# 4. 在浏览器中打开 mingpan.html 查看命盘
+# 4. 在浏览器中打开 mingpan.html 查看命盘，右上角切换主题
+```
+
+## 文件结构
+
+```
+mingli-master/
+├── SKILL.md                          # 本文件 V2
+├── README.md
+├── scripts/
+│   ├── calculate_chart.py            # 排盘引擎（iztro-py + V2 后处理管线）
+│   ├── generate_html.py              # HTML 生成引擎（空宫渲染/第0/6章注入/主题变量）
+│   ├── gezhi_rules.py                # 格局判定与量化规则（判定规则单一事实来源）
+│   └── calibration.py                # 校准问题库（优先级/关键点/回答示例）
+├── templates/
+│   └── chart_template.html           # HTML 模板（典藏主题 + 赛博增强层 + 切换器）
+└── references/
+    ├── stars_reference.md             # 星曜解读参考
+    ├── four_hua_reference.md          # 四化参考
+    └── interpretation_guide.md        # 解读风格指南
 ```

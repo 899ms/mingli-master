@@ -3,6 +3,13 @@
 
 读取排盘数据 JSON + 解读文字，填充 HTML 模板，输出最终命盘文件。
 
+V2.1 说明（合并社区共创版机制，拆除外部话术依赖）:
+  - 空宫借星渲染 + 能量系数标签（依赖 calculate_chart.py 的后处理字段）
+  - 第 0 章「宏观格局仪表盘」: 由 chart.json 的 gezhi_analysis 纯数据渲染，自动插入 cards 头部
+  - 第 6 章「时空压力热力表」: 由 time_travel_analysis 纯数据渲染，干支动态计算，自动追加 cards 尾部
+  - 不再依赖任何外部话术模块；解读文案一律由 LLM 写入 reading.json
+  - reading.json 为空结构时也能出完整 HTML（第 0/6 章自动注入）
+
 用法:
     python3 generate_html.py --chart chart_data.json --reading reading.json --output mingpan.html
 """
@@ -22,26 +29,6 @@ HOUR_NAMES_MAP = {
 # Row 2: 辰(11) [center] [center] 酉(4)
 # Row 3: 卯(10) [center] [center] 戌(5)
 # Row 4: 寅(9) 丑(8) 子(7) 亥(6)
-GRID_ORDER = [
-    # row 1: indices 0,1,2,3
-    {'index': None, 'row': 1, 'col': 1},  # 巳 - will be filled by branch mapping
-    {'index': None, 'row': 1, 'col': 2},  # 午
-    {'index': None, 'row': 1, 'col': 3},  # 未
-    {'index': None, 'row': 1, 'col': 4},  # 申
-    # row 2
-    {'index': None, 'row': 2, 'col': 1},  # 辰
-    # center occupies row 2-3, col 2-3
-    {'index': None, 'row': 2, 'col': 4},  # 酉
-    # row 3
-    {'index': None, 'row': 3, 'col': 1},  # 卯
-    {'index': None, 'row': 3, 'col': 4},  # 戌
-    # row 4
-    {'index': None, 'row': 4, 'col': 1},  # 寅
-    {'index': None, 'row': 4, 'col': 2},  # 丑
-    {'index': None, 'row': 4, 'col': 3},  # 子
-    {'index': None, 'row': 4, 'col': 4},  # 亥
-]
-
 BRANCH_GRID_MAP = {
     '巳': (1, 1), '午': (1, 2), '未': (1, 3), '申': (1, 4),
     '辰': (2, 1),                          '酉': (2, 4),
@@ -55,16 +42,32 @@ def build_palace_cell(p, soul_branch, body_branch, current_decadal_branch):
     name = p['name']
     major = p['major_stars']
     minor = p['minor_stars']
-    mutagens = p['mutagens']
+    mutagens = p.get('mutagens', [])
+
+    # 检测空宫元数据（由 gezhi_rules.reduce_empty_palaces 注入）
+    is_empty = p.get("is_empty_palace", False)
+    coef = p.get("energy_coefficient", 1.0)
+    borrowed_major = p.get("borrowed_major_stars", [])
+    borrowed_minor = p.get("borrowed_minor_stars", [])
 
     classes = ['palace']
     if branch == soul_branch:
         classes.append('active')
     if branch == current_decadal_branch:
         classes.append('current-limit')
+    if is_empty:
+        classes.append('empty-palace')
 
     stars_html = ''
-    if major:
+    if is_empty:
+        # 空宫：渲染借星，带特殊样式
+        for s in borrowed_major:
+            stars_html += f'<span class="star main borrowed-star">{s}</span>\n'
+        for s in borrowed_minor:
+            stars_html += f'<span class="star borrowed-star">{s}</span>\n'
+        if not borrowed_major and not borrowed_minor:
+            stars_html = '<span class="star empty">空宫</span>\n'
+    elif major:
         for s in major:
             mut = next((m['mutagen'] for m in mutagens if m['star'] == s), None)
             if mut:
@@ -83,20 +86,31 @@ def build_palace_cell(p, soul_branch, body_branch, current_decadal_branch):
         stars_html = '<span class="star empty">空宫</span>\n'
 
     badges = ''
-    for tag in p['tags']:
+    for tag in p.get('tags', []):
         if tag == '命宫':
             badges += '<div class="palace-badge badge-ming">命宫</div>\n'
         elif tag == '身宫':
             badges += '<div class="palace-badge badge-body">身宫</div>\n'
 
-    if branch == current_decadal_branch and '命宫' not in p['tags'] and '身宫' not in p['tags']:
+    if branch == current_decadal_branch and '命宫' not in p.get('tags', []) and '身宫' not in p.get('tags', []):
         badges += '<div class="palace-badge badge-limit">当前大限</div>\n'
+
+    # 空宫元数据标签
+    if is_empty:
+        vuln_cls = 'vuln-high' if coef == 0.5 else 'vuln-medium'
+        meta_html = f'''<div class="palace-meta-badge">
+            <span class="badge-tag borrowed-tag">借星安宫</span>
+            <span class="badge-coef {vuln_cls}">能量系数 {coef}</span>
+        </div>'''
+    else:
+        meta_html = '<div class="palace-meta-badge"><span class="badge-coef stable">能量系数 1.0</span></div>'
 
     return f'''<div class="{' '.join(classes)}">
       <div class="palace-name">{name}</div>
       <div class="palace-dizhi">{branch}</div>
       <div class="palace-stars">{stars_html}</div>
       {badges}
+      {meta_html}
     </div>'''
 
 
@@ -202,6 +216,88 @@ def build_calibration(questions):
     return html
 
 
+def build_gezhi_dashboard_card(gezhi):
+    """第 0 章: 宏观格局仪表盘（纯数据渲染，无外部话术依赖）"""
+    if not gezhi:
+        return None
+    metrics = gezhi.get('quant_metrics', {
+        'risk_tolerance': 3, 'fluctuation_resilience': 3, 'decision_aggressiveness': 3
+    })
+    warnings_html = ''
+    for w in gezhi.get('stress_warnings', []):
+        warnings_html += f'<p class="warn" style="margin-top:10px;">⚠ {w["type"]}：{w["desc"]}</p>'
+
+    dashboard_body = f"""<div class="gezhi-dashboard">
+        <h3>格局判定: <strong>{gezhi.get('gezhi_name', '')}</strong></h3>
+        <p class="tech-alias">{gezhi.get('tech_alias', '')}</p>
+        <p class="desc">{gezhi.get('description', '')}</p>
+        <hr style="border:0;border-top:1px solid rgba(128,128,128,0.25);margin:15px 0;"/>
+        <div class="metrics-container">
+            <div class="metric-line">系统风险耐受度: <strong>{metrics['risk_tolerance']}/5</strong>
+                <div class="bar"><div class="fill" style="width:{metrics['risk_tolerance']*20}%"></div></div>
+            </div>
+            <div class="metric-line">逆境波动恢复力: <strong>{metrics['fluctuation_resilience']}/5</strong>
+                <div class="bar"><div class="fill" style="width:{metrics['fluctuation_resilience']*20}%;background:#2f9e44;"></div></div>
+            </div>
+            <div class="metric-line">决策激进度: <strong>{metrics['decision_aggressiveness']}/5</strong>
+                <div class="bar"><div class="fill" style="width:{metrics['decision_aggressiveness']*20}%"></div></div>
+            </div>
+        </div>
+        {warnings_html}
+    </div>"""
+    return {
+        "title": "宏观格局 · 先天禀赋量化",
+        "badge": gezhi.get('gezhi_name', ''),
+        "full": True,
+        "highlight": True,
+        "body": dashboard_body
+    }
+
+
+def build_time_travel_card(tta):
+    """第 6 章: 时空压力热力表（纯数据渲染，干支动态取自排盘结果，无外部话术依赖）"""
+    if not tta:
+        return None
+
+    year = tta.get('target_year', '')
+    stem = tta.get('liunian_stem', '')
+    branch = tta.get('liunian_branch', '')
+    liunian_ji = tta.get('liunian_ji_star') or '—'
+    daxian_ji = tta.get('daxian_ji_star') or '—'
+    daxian_palace = tta.get('current_decadal_palace') or '—'
+
+    rows_html = ''
+    for item in tta.get('full_time_log', []):
+        score = item['stress_score']
+        row_cls = 'row-hotspot' if item.get('is_hotspot') else ('row-warn' if score >= 1.5 else '')
+        tag_cls = 'score-hot' if item.get('is_hotspot') else ('score-high' if score >= 1.5 else '')
+        sources = '；'.join(item.get('trigger_sources', []))
+        rows_html += f'''<tr class="{row_cls}">
+            <td>{item['palace_name']} <span class="branch-td">{item['earthly_branch']}</span></td>
+            <td><span class="score-tag {tag_cls}">{score}</span></td>
+            <td class="risk-td">{item['risk_level']}</td>
+            <td class="risk-td">{sources}</td>
+        </tr>\n'''
+
+    body_html = f"""<div class="time-travel-panel">
+        <h4>{year}年 {stem}{branch} · 时空压力审计</h4>
+        <p class="tech-alias">流年化忌 [{liunian_ji}] · 大限化忌 [{daxian_ji}] · 当前大限 [{daxian_palace}]（生年忌宫：{tta.get('birth_year_ji_branch') or '—'}）</p>
+        <table class="stress-table">
+            <tr><th>检测宫位</th><th>压力分值</th><th>风险评级</th><th>触发源追踪</th></tr>
+            {rows_html}
+        </table>
+        <p class="risk-td" style="margin-top:12px;">压力分 ≥2.5 为高危热点，≥1.5 为预警；得分由生年化忌（对宫冲射 ×1.5 加权）与大限/流年叠忌累计。</p>
+    </div>"""
+
+    return {
+        "title": f"时空压力审计 · {year}年叠忌扫描",
+        "badge": f"{stem}{branch}年",
+        "full": True,
+        "teal": True,
+        "body": body_html
+    }
+
+
 def generate_html(chart_data, reading_data, template_path):
     with open(template_path, 'r', encoding='utf-8') as f:
         template = f.read()
@@ -213,13 +309,20 @@ def generate_html(chart_data, reading_data, template_path):
     soul_palace = next((p for p in chart_data['palaces'] if '命宫' in p.get('tags', [])), None)
     soul_stars = '·'.join(soul_palace['major_stars']) if soul_palace and soul_palace['major_stars'] else '空宫（借对宫星曜）'
 
-    # Find current decadal (based on age - approximate)
     hour_name = HOUR_NAMES_MAP.get(chart_data['hour_index'], '丑时')
 
     # Determine current decadal palace
     current_decadal_branch = ''
     if reading_data.get('current_decadal_branch'):
         current_decadal_branch = reading_data['current_decadal_branch']
+    elif chart_data.get('time_travel_analysis', {}).get('current_decadal_palace'):
+        # 排盘数据自带当前大限宫位，兜底取它的地支
+        palace_name = chart_data['time_travel_analysis']['current_decadal_palace']
+        palace = next((p for p in chart_data['palaces'] if p['name'] == palace_name), None)
+        if palace:
+            current_decadal_branch = palace['earthly_branch']
+            reading_data.setdefault('current_decadal_display',
+                                    f"{palace['dizhi']}（{palace['decadal_range']}大限）")
 
     # Build palace grid
     palace_cells = build_palace_grid(
@@ -228,6 +331,21 @@ def generate_html(chart_data, reading_data, template_path):
 
     # Build four hua tags
     four_hua_tags = build_four_hua_tags(chart_data['year_mutagens'])
+
+    # ========================================================
+    # 章节组装: [第0章 格局仪表盘] → [LLM 解读卡片] → [第6章 时空压力表]
+    # ========================================================
+    cards_list = list(reading_data.get("cards", []))
+
+    gezhi_card = build_gezhi_dashboard_card(chart_data.get('gezhi_analysis'))
+    if gezhi_card:
+        cards_list.insert(0, gezhi_card)
+
+    tta_card = build_time_travel_card(chart_data.get('time_travel_analysis'))
+    if tta_card:
+        cards_list.append(tta_card)
+
+    reading_data['cards'] = cards_list
 
     # Build reading cards
     reading_cards = build_reading_cards(reading_data)
@@ -242,7 +360,6 @@ def generate_html(chart_data, reading_data, template_path):
     solar = chart_data.get('solar_date', '')
     lunar = chart_data.get('lunar_date', '')
     chinese = chart_data.get('chinese_date', '')
-    year_stem = chart_data['palaces'][0]['heavenly_stem'] if chart_data['palaces'] else ''
 
     # Extract year stem/branch from chinese_date
     parts = chinese.split() if chinese else []

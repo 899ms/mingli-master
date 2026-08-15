@@ -512,9 +512,239 @@
     .palace-grid { grid-template-columns: repeat(3, 1fr); font-size: 12px; }
     .palace-center { display: none; }
   }
+
+  /* ==========================================
+     V2 组件 · 典藏主题（默认金黑古典风）
+     空宫标记 / 格局仪表盘 / 时空压力热力表
+     ========================================== */
+
+  /* 空宫与借星 */
+  .palace.empty-palace {
+    background: rgba(20,20,25,0.6);
+    border: 1px dashed rgba(200,169,110,0.25);
+  }
+  .palace.empty-palace .palace-stars { opacity: 0.75; }
+  .borrowed-star {
+    color: var(--ivory-dim);
+    font-size: 13px;
+    border: 1px dashed rgba(200,169,110,0.3);
+    padding: 0 3px;
+    border-radius: 2px;
+    font-style: italic;
+  }
+  .borrowed-star.main { color: rgba(200,169,110,0.65); font-size: 14px; font-weight: 400; }
+  .borrowed-star::after { content: "(借)"; font-size: 9px; vertical-align: super; opacity: 0.7; }
+
+  .palace-meta-badge {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .badge-tag { font-size: 9px; padding: 2px 5px; border-radius: 1px; letter-spacing: 1px; }
+  .borrowed-tag {
+    background: rgba(200,169,110,0.15);
+    color: var(--gold-dim);
+    border: 1px solid rgba(200,169,110,0.3);
+  }
+  .badge-coef { font-size: 9px; padding: 2px 5px; border-radius: 1px; letter-spacing: 1px; }
+  .vuln-high { background: rgba(155,35,53,0.25); color: #FF6B6B; border: 1px solid rgba(155,35,53,0.4); }
+  .vuln-medium { background: rgba(200,169,110,0.15); color: var(--gold-dim); border: 1px solid rgba(200,169,110,0.3); }
+  .stable { background: rgba(59,122,133,0.15); color: var(--teal-light); border: 1px solid rgba(59,122,133,0.25); }
+
+  /* 宏观格局仪表盘 */
+  .gezhi-dashboard {
+    background: rgba(10,10,15,0.6);
+    padding: 24px;
+    border-left: 2px solid rgba(200,169,110,0.35);
+    margin: 0;
+  }
+  .gezhi-dashboard h3 {
+    font-family: 'Ma Shan Zheng', serif;
+    font-size: 22px;
+    color: var(--gold);
+    margin: 0 0 12px;
+  }
+  .gezhi-dashboard .tech-alias { color: var(--ivory-dim); font-size: 13px; margin-bottom: 10px; }
+  .gezhi-dashboard .desc { color: var(--ivory-dim); font-size: 13px; line-height: 1.8; opacity: 0.85; margin-bottom: 16px; }
+  .metrics-container { display: flex; flex-direction: column; gap: 10px; }
+  .metric-line {
+    font-size: 12px;
+    color: var(--ivory-dim);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .metric-line strong { color: var(--ivory); }
+  .bar {
+    flex: 1;
+    height: 4px;
+    background: rgba(200,169,110,0.12);
+    border-radius: 2px;
+    overflow: hidden;
+    max-width: 200px;
+  }
+  .fill { height: 100%; background: rgba(200,169,110,0.55); border-radius: 2px; }
+
+  /* 时空压力热力表 */
+  .time-travel-panel { padding: 4px 0; }
+  .time-travel-panel h4 {
+    font-family: 'Ma Shan Zheng', serif;
+    font-size: 17px;
+    color: var(--gold);
+    margin: 0 0 10px;
+  }
+  .time-travel-panel .tech-alias { font-size: 12px; color: var(--ivory-dim); margin-bottom: 14px; }
+  .stress-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    color: var(--ivory-dim);
+  }
+  .stress-table th {
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(200,169,110,0.2);
+    color: var(--gold-dim);
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+  .stress-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: middle;
+  }
+  .stress-table tr:hover td { background: rgba(200,169,110,0.04); }
+  .stress-table tr.row-warn td { background: rgba(255,124,67,0.07); }
+  .stress-table tr.row-hotspot td { background: rgba(155,35,53,0.12); }
+  .branch-td { color: var(--gold-dim); font-size: 11px; }
+  .risk-td { font-size: 11px; color: var(--ivory-dim); }
+  .score-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    background: rgba(200,169,110,0.12);
+    color: var(--gold-dim);
+  }
+  .score-tag.score-high { background: rgba(255,124,67,0.2); color: #FF8C60; }
+  .score-tag.score-hot { background: rgba(155,35,53,0.3); color: #FF6B6B; }
+
+  /* 主题切换按钮 */
+  .theme-switch {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 99;
+    display: flex;
+    gap: 1px;
+    border: 1px solid rgba(200,169,110,0.35);
+    border-radius: 20px;
+    overflow: hidden;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(6px);
+  }
+  .theme-switch button {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--ivory-dim);
+    background: transparent;
+    border: none;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+  .theme-switch button:hover { color: var(--gold); }
+  .theme-switch button.on {
+    background: rgba(200,169,110,0.18);
+    color: var(--gold);
+  }
+</style>
+
+<!-- ==========================================================================
+   赛博增强主题（社区共创）：默认关闭，右上角「赛博」按钮开启
+   开启后仪表盘/热力表/空宫标记切换为发光卡片风格，整页底色转冷
+   ========================================================================== -->
+<style id="cyber-theme-css" disabled>
+  html[data-theme='cyber'] body { background: #0d0e12; }
+  html[data-theme='cyber'] body::before {
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(30,60,110,0.25) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(20,40,90,0.3) 0%, transparent 60%),
+      radial-gradient(ellipse at 50% 0%, rgba(212,175,55,0.06) 0%, transparent 50%);
+  }
+
+  /* 宏观格局仪表盘 · 赛博版 */
+  .gezhi-dashboard {
+    background: linear-gradient(135deg, #1a1c24 0%, #111217 100%);
+    border: 1px solid #d4af37;
+    padding: 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(212, 175, 55, 0.15);
+  }
+  .gezhi-dashboard h3 { color: #ffffff; font-family: 'Noto Serif SC', serif; font-size: 1.3rem; }
+  .gezhi-dashboard .tech-alias { color: #d4af37; }
+  .metric-line .bar { height: 6px; background: #252836; border-radius: 3px; max-width: none; }
+  .metric-line .bar .fill { background: #d4af37; transition: width 0.5s ease; }
+
+  /* 空宫与系统脆性 · 赛博版 */
+  .palace.empty-palace {
+    background: rgba(22, 24, 32, 0.4) !important;
+    border: 1px dashed #4a4f6e !important;
+    opacity: 0.9;
+  }
+  .borrowed-star { color: #718096 !important; }
+  .borrowed-star.main { color: #a0aec0 !important; }
+  .palace-meta-badge .badge-tag { background: #2d3748; color: #cbd5e0; border-radius: 3px; }
+  .palace-meta-badge .badge-coef { border-radius: 3px; font-weight: bold; }
+  .vuln-high { background: rgba(249, 93, 106, 0.2); color: #f95d6a; border: 1px solid #f95d6a; }
+  .vuln-medium { background: rgba(255, 124, 67, 0.2); color: #ff7c43; }
+  .stable { background: rgba(47, 158, 68, 0.15); color: #2f9e44; }
+
+  /* 时空压力审计面板 · 赛博版 */
+  .time-travel-panel {
+    background: #161820;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #2a2d3d;
+  }
+  .time-travel-panel h4 { color: #d4af37; font-size: 1.05rem; }
+  .time-travel-panel .tech-alias { color: #a0aec0; }
+  .stress-table th {
+    background: #1f222f;
+    color: #a0aec0;
+    padding: 10px;
+    font-weight: 500;
+  }
+  .stress-table td { padding: 12px 10px; border-bottom: 1px solid #232635; color: #e2e8f0; }
+  .stress-table tr:hover td { background: rgba(212, 175, 55, 0.03); }
+  .stress-table tr.row-warn td {
+    background: rgba(255, 124, 67, 0.07);
+    border-bottom: 1px solid rgba(255, 124, 67, 0.2);
+  }
+  .stress-table tr.row-hotspot td {
+    background: rgba(249, 93, 106, 0.1);
+    border-bottom: 1px solid rgba(249, 93, 106, 0.2);
+  }
+  .score-tag { background: #232635; color: #e2e8f0; border-radius: 12px; font-weight: bold; }
+  .score-tag.score-high { background: #ff7c43; color: #000; }
+  .score-tag.score-hot { background: #f95d6a; color: #fff; }
+
+  /* 命盘宫格 · 赛博描边 */
+  .palace-grid { border-radius: 8px; }
+  .palace { background: #161820; }
+  .palace:hover { background: #1e2230; }
+  .palace.active { box-shadow: 0 0 12px rgba(249, 93, 106, 0.25); }
+  .reading-card { background: #161820; border-color: #2a2d3d; border-radius: 8px; }
+  .hand-section { background: #161820; border-color: #2a2d3d; border-radius: 8px; }
 </style>
 </head>
 <body>
+<div class="theme-switch" id="themeSwitch">
+  <button type="button" data-theme="classic">典藏</button>
+  <button type="button" data-theme="cyber">赛博</button>
+</div>
 <div class="container">
 
   <!-- HEADER -->
@@ -590,5 +820,23 @@
   </div>
 
 </div>
+<script>
+(function () {
+  var cyberCSS = document.getElementById('cyber-theme-css');
+  var btns = document.querySelectorAll('#themeSwitch button');
+  function apply(theme) {
+    if (cyberCSS) cyberCSS.disabled = (theme !== 'cyber');
+    document.documentElement.setAttribute('data-theme', theme);
+    btns.forEach(function (b) { b.classList.toggle('on', b.dataset.theme === theme); });
+    try { localStorage.setItem('mingli-theme', theme); } catch (e) {}
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () { apply(b.dataset.theme); });
+  });
+  var saved = 'classic';
+  try { saved = localStorage.getItem('mingli-theme') || 'classic'; } catch (e) {}
+  apply(saved);
+})();
+</script>
 </body>
 </html>
